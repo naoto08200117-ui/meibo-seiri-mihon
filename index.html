@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>名簿の整理アプリ（見本）</title>
+<style>
+:root{
+  --bg:#f3f1ec; --panel:#ffffff; --ink:#1f2a44; --sub:#4b5563; --line:#d6d9df;
+  --blue:#2b5797; --green:#1a7f3c; --yel:#fff3cd; --gray:#eeeeee; --red:#b42318; --note:#fff4d6;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"BIZ UDPGothic","Yu Gothic UI","Meiryo",system-ui,sans-serif;font-size:15px;line-height:1.6}
+main{max-width:1180px;margin:0 auto;padding:24px 16px 60px}
+h1{font-size:26px;margin:0 0 4px}
+.lead{color:var(--sub);margin:0 0 16px}
+.safe{display:inline-block;background:var(--green);color:#fff;font-weight:700;border-radius:999px;padding:4px 14px;font-size:13px;margin-bottom:10px}
+section{background:var(--panel);border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,.06);padding:18px 20px;margin:14px 0}
+h2{font-size:18px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+h2 .n{background:var(--blue);color:#fff;border-radius:50%;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;font-size:14px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button,select,input[type=file]{font:inherit}
+input[type=file]{max-width:100%}
+button{border:0;border-radius:10px;padding:9px 16px;font-weight:700;cursor:pointer;background:#e7ebf3;color:var(--ink)}
+button.primary{background:var(--blue);color:#fff}
+button.go{background:var(--green);color:#fff;font-size:17px;padding:11px 26px}
+button:disabled{opacity:.45;cursor:not-allowed}
+textarea{width:100%;min-height:110px;font:13px/1.5 Consolas,"Meiryo",monospace;border:1px solid var(--line);border-radius:10px;padding:10px}
+select{border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:#fff}
+.hint{color:var(--sub);font-size:13px}
+.msg{margin-top:8px;font-weight:700}
+.msg.err{color:var(--red)} .msg.ok{color:var(--green)}
+.roles{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.role{border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.role b{display:block;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stats{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px}
+.stat{background:#f6f7f9;border-radius:10px;padding:6px 14px;font-weight:700}
+.stat.y{background:var(--yel)} .stat.g{background:var(--gray)}
+.wrap{overflow:auto;max-height:560px;border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:13.5px;background:#fff}
+th{position:sticky;top:0;background:var(--green);color:#fff;text-align:left;padding:6px 8px;white-space:nowrap;z-index:1}
+td{border-top:1px solid var(--line);padding:5px 8px;vertical-align:top;white-space:nowrap}
+td .was{display:block;color:#8a8f99;font-size:11.5px}
+tr.dup td{background:var(--gray);color:#6b7280}
+tr.chk td{background:var(--yel)}
+tr.dup.chk td{background:var(--yel);color:#6b7280}
+.legend{display:flex;gap:14px;font-size:13px;margin:6px 0 10px;color:var(--sub)}
+.sw{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:4px;border:1px solid var(--line)}
+details{margin-top:8px} summary{cursor:pointer;color:var(--blue);font-weight:700}
+ul.limits{margin:6px 0 0 1.2em;padding:0;color:var(--sub);font-size:13px}
+.hidden{display:none}
+@media (max-width:640px){ h1{font-size:21px} section{padding:14px} }
+</style>
+</head>
+<body>
+<main>
+  <span class="safe">データは外に送りません・保存もしません</span>
+  <h1>名簿の整理アプリ（見本）</h1>
+  <p class="lead">表記がバラバラな名簿の CSV を、このブラウザの中だけで整えます。会社名の（株）、全角と半角、電話番号の形と先頭の0、メールの大文字、都道府県、重複の印。元の列は残したまま、整えた列を隣に足します。</p>
+
+  <section>
+    <h2><span class="n">1</span>名簿を読み込む</h2>
+    <div class="row">
+      <button class="primary" id="btnSample">見本の名簿（架空）を読む</button>
+      <input type="file" id="file" accept=".csv,text/csv,text/plain">
+      <label class="hint">文字コード
+        <select id="enc"><option value="auto">自動</option><option value="utf-8">UTF-8</option><option value="shift_jis">Shift_JIS</option></select>
+      </label>
+    </div>
+    <details>
+      <summary>CSV を貼り付ける</summary>
+      <textarea id="paste" placeholder="1行目は見出し（会社名,担当者名,電話番号,…）にしてください"></textarea>
+      <button id="btnPaste">貼り付けた内容を読む</button>
+    </details>
+    <div id="msgLoad" class="msg"></div>
+  </section>
+
+  <section id="secRoles" class="hidden">
+    <h2><span class="n">2</span>列の役割を確かめる</h2>
+    <p class="hint">見出しから自動で選んでいます。違っていたら直してください。「そのまま」の列は何も変えません。</p>
+    <div class="roles" id="roles"></div>
+    <div class="row" style="margin-top:14px"><button class="go" id="btnRun">整える</button></div>
+  </section>
+
+  <section id="secResult" class="hidden">
+    <h2><span class="n">3</span>結果を確かめて、CSV を保存する</h2>
+    <div class="stats" id="stats"></div>
+    <div class="legend"><span><span class="sw" style="background:var(--yel)"></span>要確認（人が確かめる所）</span><span><span class="sw" style="background:var(--gray)"></span>重複（2件目以降。消さずに印だけ）</span><span>小さな灰色の字＝元の値</span></div>
+    <div class="row" style="margin-bottom:10px"><button class="primary" id="btnSave">整えた CSV を保存する（Excel で開けます）</button><span class="hint" id="showNote"></span></div>
+    <div class="wrap"><table id="tbl"></table></div>
+    <details>
+      <summary>このアプリでできないこと</summary>
+      <ul class="limits">
+        <li>住所の書き方の違い（「2丁目3-4」と「2-3-4」）が同じ所かは決めません。重複の判定は「名前＋電話（電話がなければメール）」が同じときだけです</li>
+        <li>固定電話の区切りの位置は、よくある市外局番だけで決めています。それ以外は「電話の区切り」として要確認にします。4桁の市外局番（0466 など）を3桁で区切ってしまうことがあります</li>
+        <li>保存する CSV では、= + - @ で始まるセルの先頭に ' を付けます（Excel が式として動かさないため）。元の電話番号の列は、Excel で開くと先頭の0が消えることがあります。整えた電話番号の列を使ってください</li>
+        <li>会社名の言いかえ（「サンプル工房」と「有限会社サンプル工房」）が同じ会社かは決めません</li>
+        <li>重複の行は消しません（印だけ）。最後は人が確かめてください</li>
+        <li>読める大きさは 5MB・1万行まで。xlsx は CSV にしてから読み込んでください</li>
+      </ul>
+    </details>
+  </section>
+  <p class="hint">見本のデータはすべて架空です（電話番号は 0000 を含む架空の番号、メールは example のドメイン）。</p>
+</main>
+
+<script>
+"use strict";
+const MAX_BYTES = 5 * 1024 * 1024, MAX_ROWS = 10000, SHOW_ROWS = 100;
+const ROLES = [["keep","そのまま"],["company","会社名"],["name","担当者名"],["phone","電話番号"],["email","メール"],["address","住所"]];
+const PREFS = "北海道 青森県 岩手県 宮城県 秋田県 山形県 福島県 茨城県 栃木県 群馬県 埼玉県 千葉県 東京都 神奈川県 新潟県 富山県 石川県 福井県 山梨県 長野県 岐阜県 静岡県 愛知県 三重県 滋賀県 京都府 大阪府 兵庫県 奈良県 和歌山県 鳥取県 島根県 岡山県 広島県 山口県 徳島県 香川県 愛媛県 高知県 福岡県 佐賀県 長崎県 熊本県 大分県 宮崎県 鹿児島県 沖縄県".split(" ");
+const $ = id => document.getElementById(id);
+let header = [], rows = [], roles = [], result = null, loadInfo = {};
+
+// ---------- CSV ----------
+function parseCSV(text) {
+  // Excel から貼り付けた表（タブ区切り）にも対応する
+  const first = text.split(/\r\n|\r|\n/, 1)[0];
+  const sep = first.includes("\t") && !first.includes(",") ? "\t" : ",";
+  const out = []; let row = [], cell = "", q = false, i = 0;
+  while (i < text.length) {
+    const c = text[i];
+    if (q) {
+      if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i += 2; continue; } q = false; i++; continue; }
+      cell += c; i++; continue;
+    }
+    if (c === '"' && cell === "") { q = true; i++; continue; }
+    if (c === sep) { row.push(cell); cell = ""; i++; continue; }
+    if (c === "\r" || c === "\n") { row.push(cell); out.push(row); row = []; cell = ""; if (c === "\r" && text[i + 1] === "\n") i++; i++; continue; }
+    cell += c; i++;
+  }
+  if (cell !== "" || row.length) { row.push(cell); out.push(row); }
+  out.unclosed = q;   // 閉じていない「"」があった
+  return out;
+}
+function csvCell(v) {
+  let s = String(v ?? "");
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;          // Excel が式として動かさないように
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function decode(buf, enc) {
+  let bytes = new Uint8Array(buf);
+  if (bytes[0] === 0xFF && bytes[1] === 0xFE) return { text: new TextDecoder("utf-16le").decode(bytes.subarray(2)), used: "UTF-16" };
+  if (bytes[0] === 0xFE && bytes[1] === 0xFF) return { text: new TextDecoder("utf-16be").decode(bytes.subarray(2)), used: "UTF-16" };
+  if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) bytes = bytes.subarray(3);
+  if (enc === "utf-8") return { text: new TextDecoder("utf-8").decode(bytes), used: "UTF-8" };
+  if (enc === "shift_jis") return { text: new TextDecoder("shift_jis").decode(bytes), used: "Shift_JIS" };
+  try { return { text: new TextDecoder("utf-8", { fatal: true }).decode(bytes), used: "UTF-8（自動）" }; }
+  catch { return { text: new TextDecoder("shift_jis").decode(bytes), used: "Shift_JIS（自動）" }; }
+}
+
+// ---------- 文字の変換 ----------
+const nfkc = s => String(s ?? "").normalize("NFKC");                       // 半角ｶﾅ→全角カナ、全角英数→半角
+const toFullAscii = s => s.replace(/[!-~]/g, c => String.fromCharCode(c.charCodeAt(0) + 0xFEE0));
+// 全角数字を半角に。ハイフンの仲間は「数字と数字の間」だけ - にする（「グリーンハイツ」の長音は変えない）
+const toHalfDigits = s => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/(\d)[－ー―‐−-](?=\d)/g, "$1-");
+const squeeze = s => s.replace(/[\s　]+/g, " ").trim();
+
+function cleanCompany(v) {
+  if (!String(v).trim()) return "";
+  let s = nfkc(v).replace(/[\s　]+/g, "");
+  s = s.replace(/\(株\)/g, "株式会社").replace(/\(有\)/g, "有限会社").replace(/\(同\)/g, "合同会社");
+  return toFullAscii(s);
+}
+function cleanName(v) {
+  if (!String(v).trim()) return "";
+  return squeeze(nfkc(v)).split(" ").map(toFullAscii).join(" ");
+}
+function phoneDigits(v) {
+  let d = nfkc(v).replace(/\D/g, "");
+  if (d && d[0] !== "0") d = "0" + d;
+  return d;
+}
+// 中に4〜5桁の局番が混じらない、確かな3桁の市外局番だけ（これ以外の固定電話は、区切りの位置を人に確かめてもらう）
+const AREA3 = "045 052 075 078 092".split(" ");
+// 戻り値：{ text: 区切った番号, sure: 区切りに自信があるか }
+function formatPhone(d) {
+  if (!d) return { text: "", sure: true };
+  const f = (...n) => { let i = 0; return n.map(k => d.slice(i, i += k)).join("-"); };
+  if (d.length === 11 && d.startsWith("0800")) return { text: f(4, 3, 4), sure: true };       // 0800 を先に
+  if (d.length === 11 && /^0[5789]0/.test(d)) return { text: f(3, 4, 4), sure: true };      // 携帯・IP
+  if (d.length === 10 && (d.startsWith("0120") || d.startsWith("0570"))) return { text: f(4, 3, 3), sure: true };
+  if (d.length === 10 && (d.startsWith("03") || d.startsWith("06"))) return { text: f(2, 4, 4), sure: true };
+  if (d.length === 10 && AREA3.includes(d.slice(0, 3))) return { text: f(3, 3, 4), sure: true };
+  if (d.length === 10) return { text: f(3, 3, 4), sure: false };                              // 区切りは仮
+  return { text: "", sure: false };
+}
+function cleanEmail(v) { return nfkc(v).replace(/[\s　]+/g, "").toLowerCase(); }
+// 1件だけの、形の整ったメールか（2件書き・「..」・記号の混じりは要確認）
+function emailOk(e) { return /^[a-z0-9._%+\-]+@[a-z0-9\-]+(\.[a-z0-9\-]+)+$/.test(e) && !e.includes("..") && !e.startsWith("."); }
+function splitAddress(v) {
+  const s = toHalfDigits(squeeze(String(v ?? "").replace(/　/g, " ")));
+  if (!s) return { pref: "", rest: "", all: "" };
+  const p = PREFS.find(x => s.startsWith(x)) || "";
+  return { pref: p, rest: p ? s.slice(p.length) : s, all: s };
+}
+
+// ---------- 読み込み ----------
+function guessRole(h) {
+  const t = nfkc(h).toLowerCase();
+  if (/カナ|かな|フリガナ|ふりがな|よみ|ヨミ/.test(t)) return "keep";   // ふりがなの列は名前として扱わない
+  if (/メール|mail/.test(t)) return "email";
+  if (/電話|tel|携帯|phone/.test(t)) return "phone";
+  if (/住所|所在地|address/.test(t)) return "address";
+  if (/会社|社名|法人|屋号|店名/.test(t)) return "company";
+  if (/氏名|名前|担当|name/.test(t)) return "name";
+  return "keep";
+}
+function load(text, info) {
+  result = null; $("secResult").classList.add("hidden");
+  const msg = $("msgLoad"); msg.className = "msg";
+  $("secRoles").classList.add("hidden"); header = []; rows = [];   // 失敗したときに前の名簿が残らないように
+  const all = parseCSV(text);
+  if (all.length > MAX_ROWS * 5) { msg.textContent = `行が多すぎます（${all.length - 1} 行）。1万行までにしてください。`; msg.classList.add("err"); return; }
+  if (all.length < 2) { msg.textContent = "見出しと、1行以上のデータが要ります。"; msg.classList.add("err"); return; }
+  if (all.unclosed) { msg.textContent = "閉じていない「\"」があります。CSV の中身を確かめてください（途中から1つのセルにまとまっています）。"; msg.classList.add("err"); return; }
+  header = all[0].map(h => h.trim());
+  const baseCols = header.length;
+  let width = 0; for (const r of all) if (r.length > width) width = r.length;
+  for (let k = header.length; k < width; k++) header.push(`（追加の列${k - baseCols + 1}）`);   // はみ出た列も消さずに残す
+  let blank = 0, short = 0, long = 0;
+  rows = [];
+  for (const r of all.slice(1)) {
+    if (r.every(c => c.trim() === "")) { blank++; continue; }
+    const fixed = r.slice();
+    if (r.length < baseCols) { short++; fixed.short = true; }
+    if (r.length > baseCols) { long++; fixed.long = true; }
+    while (fixed.length < header.length) fixed.push("");
+    rows.push(fixed);
+  }
+  if (rows.length > MAX_ROWS) { msg.textContent = `行が多すぎます（${rows.length} 行）。1万行までにしてください。`; msg.classList.add("err"); rows = []; return; }
+  loadInfo = { ...info, blank, short, long };
+  roles = header.map((h, k) => k < baseCols ? guessRole(h) : "keep");
+  msg.classList.add("ok");
+  msg.textContent = `${rows.length} 行を読みました（${info.used}${blank ? `・空行 ${blank} 行は飛ばしました` : ""}${short ? `・列が足りない行 ${short} 行は空欄で埋めました` : ""}${long ? `・列が多い行 ${long} 行があります（消さずに「追加の列」に残します）` : ""}）`;
+  drawRoles();
+}
+function drawRoles() {
+  const box = $("roles"); box.textContent = "";
+  header.forEach((h, i) => {
+    const d = document.createElement("div"); d.className = "role";
+    const b = document.createElement("b"); b.textContent = h || `（${i + 1}列目）`; d.appendChild(b);
+    const sel = document.createElement("select");
+    for (const [v, l] of ROLES) { const o = document.createElement("option"); o.value = v; o.textContent = l; if (roles[i] === v) o.selected = true; sel.appendChild(o); }
+    sel.addEventListener("change", () => {
+      roles[i] = sel.value;
+      if (result) { result = null; $("secResult").classList.add("hidden"); }   // 古い結果のまま保存しないように
+    });
+    d.appendChild(sel); box.appendChild(d);
+  });
+  $("secRoles").classList.remove("hidden");
+}
+function readFile(f) {
+  const msg = $("msgLoad"); msg.className = "msg";
+  if (f.size > MAX_BYTES) { msg.textContent = "ファイルが大きすぎます（5MB まで）。"; msg.classList.add("err"); return; }
+  const fr = new FileReader();
+  fr.onload = () => { const d = decode(fr.result, $("enc").value); load(d.text, { used: d.used, name: f.name }); };
+  fr.readAsArrayBuffer(f);
+}
+
+// ---------- 整える ----------
+function run() {
+  const dupRole = ROLES.filter(([v]) => v !== "keep" && roles.filter(x => x === v).length > 1).map(([, l]) => l);
+  const m = $("msgLoad");
+  if (dupRole.length) { m.className = "msg err"; m.textContent = `「${dupRole.join("・")}」が2つの列に付いています。1つにしてください（もう1つは「そのまま」に）。`; m.scrollIntoView({ block: "center" }); return; }
+  const idx = r => roles.indexOf(r);
+  const ic = idx("company"), inm = idx("name"), ip = idx("phone"), ie = idx("email"), ia = idx("address");
+  const seen = new Map();
+  const out = rows.map((r, n) => {
+    const flags = [];
+    const o = { src: r, company: "", name: "", phone: "", digits: "", email: "", pref: "", rest: "", dup: "" };
+    if (ic >= 0) o.company = cleanCompany(r[ic]);
+    if (inm >= 0) o.name = cleanName(r[inm]);
+    if (ip >= 0) {
+      o.digits = phoneDigits(r[ip]);
+      if (!o.digits) flags.push("電話なし");
+      else {
+        const p = formatPhone(o.digits); o.phone = p.text;
+        if (!p.text) flags.push("電話の桁"); else if (!p.sure) flags.push("電話の区切り");
+      }
+    }
+    if (ie >= 0) { o.email = cleanEmail(r[ie]); if (o.email && !emailOk(o.email)) flags.push("メール"); }
+    if (ia >= 0) { const a = splitAddress(r[ia]); o.pref = a.pref; o.rest = a.rest; if (a.all && !a.pref) flags.push("都道府県なし"); }
+    if (r.short) flags.push("列が足りない");
+    if (r.long) flags.push("列が多い");
+    // 重複は「名前」＋「電話（なければメール）」が同じとき。どちらかが空なら判定しない（同姓同名の別人を重複にしないため）
+    const nm = o.name.replace(/\s/g, ""), sub = o.digits || o.email;
+    const key = nm && sub ? nm + "|" + sub : "";
+    if (key) {
+      const c = (seen.get(key) || 0) + 1; seen.set(key, c);
+      if (c > 1) o.dup = `重複（${c}件目）`;
+    }
+    o.flags = flags;
+    return o;
+  });
+  result = out; drawResult();
+}
+function drawResult() {
+  const ic = roles.includes("company"), inm = roles.includes("name"), ip = roles.includes("phone"), ie = roles.includes("email"), ia = roles.includes("address");
+  const cols = [["No", o => [String(result.indexOf(o) + 1), null]]];
+  const src = (role) => roles.indexOf(role);
+  if (ic) cols.push(["会社名", o => [o.company, o.src[src("company")]]]);
+  if (inm) cols.push(["担当者名", o => [o.name, o.src[src("name")]]]);
+  if (ip) cols.push(["電話番号", o => [o.phone || (o.digits ? "要確認" : ""), o.src[src("phone")]]]);
+  if (ie) cols.push(["メール", o => [o.email, o.src[src("email")]]]);
+  if (ia) { cols.push(["都道府県", o => [o.pref, null]]); cols.push(["住所（都道府県のあと）", o => [o.rest, o.src[src("address")]]]); }
+  cols.push(["重複", o => [o.dup, null]]); cols.push(["要確認", o => [o.flags.join("・"), null]]);
+  const t = $("tbl"); t.textContent = "";
+  const trh = document.createElement("tr");
+  for (const [h] of cols) { const th = document.createElement("th"); th.textContent = h; trh.appendChild(th); }
+  const thead = document.createElement("thead"); thead.appendChild(trh); t.appendChild(thead);
+  const tb = document.createElement("tbody");
+  for (const o of result.slice(0, SHOW_ROWS)) {
+    const tr = document.createElement("tr");
+    tr.className = (o.dup ? "dup " : "") + (o.flags.length ? "chk" : "");
+    for (const [, f] of cols) {
+      const [v, was] = f(o); const td = document.createElement("td"); td.textContent = v;
+      if (was != null && String(was) !== String(v)) { const s = document.createElement("span"); s.className = "was"; s.textContent = "元: " + (String(was).trim() === "" ? "（空欄）" : String(was)); td.appendChild(s); }
+      tr.appendChild(td);
+    }
+    tb.appendChild(tr);
+  }
+  t.appendChild(tb);
+  const dup = result.filter(o => o.dup).length, chk = result.filter(o => o.flags.length).length;
+  const st = $("stats"); st.textContent = "";
+  for (const [txt, cls] of [[`${result.length} 件`, ""], [`重複 ${dup} 件`, "g"], [`要確認 ${chk} 件`, "y"]]) { const s = document.createElement("span"); s.className = "stat " + cls; s.textContent = txt; st.appendChild(s); }
+  $("showNote").textContent = result.length > SHOW_ROWS ? `画面には先頭の ${SHOW_ROWS} 行だけ出しています（保存する CSV には全部入ります）` : "";
+  $("secResult").classList.remove("hidden");
+  $("secResult").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function save() {
+  if (!result) return;
+  const add = [];
+  if (roles.includes("company")) add.push(["整理後_会社名", o => o.company]);
+  if (roles.includes("name")) add.push(["整理後_担当者名", o => o.name]);
+  if (roles.includes("phone")) add.push(["整理後_電話番号", o => o.phone]);
+  if (roles.includes("email")) add.push(["整理後_メール", o => o.email]);
+  if (roles.includes("address")) { add.push(["都道府県", o => o.pref]); add.push(["整理後_住所（都道府県のあと）", o => o.rest]); }
+  add.push(["重複", o => o.dup]); add.push(["要確認", o => o.flags.join("・")]);
+  const lines = [header.concat(add.map(a => a[0])).map(csvCell).join(",")];
+  for (const o of result) lines.push(o.src.concat(add.map(a => a[1](o))).map(csvCell).join(","));
+  const blob = new Blob(["﻿" + lines.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = "整理後_" + (loadInfo.name ? loadInfo.name.replace(/\.csv$/i, "") : "名簿") + ".csv";
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// ---------- 見本（架空） ----------
+const SAMPLE = [
+["会社名","担当者名","電話番号","メール","住所"],
+["（株）みほん商事","山田　花子","090-0000-0001","hanako@example.com","東京都千代田区丸の内１－２－３"],
+["株式会社 みほん商事","山田 花子","09000000001","Hanako@Example.com","東京都千代田区丸の内1-2-3"],
+["ﾐﾎﾝ物産(株)","佐藤　太郎","０３－００００－１２３４","taro.sato@example.jp","神奈川県横浜市中区山下町４－５"],
+["みほん物産株式会社"," 佐藤太郎 ","03(0000)1234","taro.sato@example.jp ","神奈川県横浜市中区山下町4-5"],
+["有限会社サンプル工房","鈴木　一郎","090 0000 0102","ichiro＠example.com","大阪府大阪市北区梅田２丁目３－４"],
+["サンプル工房","鈴木 次郎","9000000103","jiro@example.com","大阪府大阪市北区梅田2-3-5"],
+["（株）テストデザイン","高橋　美咲","070-0000-0004","misaki@example.co.jp","愛知県名古屋市中区栄３－１"],
+["株式会社テストデザイン","高橋　美咲","070-0000-0004","MISAKI@EXAMPLE.CO.JP","愛知県名古屋市中区栄3-1"],
+["ﾃｽﾄ商店","田中　健","06-0000-5678","ken@example.com","大阪府堺市堺区南瓦町１－１"],
+["みほん不動産㈱","伊藤 さくら","090ｰ0000ｰ0005","sakura@example","福岡県福岡市中央区天神1-1-1"],
+["（有）見本屋","渡辺　翔太","0120-000-000","shota@example.com","北海道札幌市中央区北1条西2丁目"],
+["見本屋","渡辺翔太","090-0000-0006","shota@example.com","札幌市中央区北1条西2丁目"],
+["合同会社みほんラボ","中村　葵","090-0000-0007","aoi@example.com","京都府京都市下京区四条通１００"],
+["みほんラボ（同）","中村 葵","090-0000-0007","aoi@example.com","京都府京都市下京区四条通100"],
+["株式会社ミホン食品","小林　大輔","045-000-0008","daisuke@example.jp","神奈川県川崎市川崎区駅前本町１"],
+["ミホン食品","小林　大輔","","daisuke@example.jp","神奈川県川崎市川崎区駅前本町1"],
+["（株）サンプル運輸","加藤　陽菜","090-0000-0009","hina@example.com","埼玉県さいたま市大宮区桜木町２－３"],
+["株式会社ｻﾝﾌﾟﾙ運輸","加藤　陽菜","090-0000-0009","hina@example.com","埼玉県さいたま市大宮区桜木町2-3"],
+["見本クリニック","吉田　蓮","092-000-0010","ren@example.com","鹿児島県鹿児島市山下町１１－１"],
+["株式会社みほん電機","山本　結衣","090-0000-0111","yui@example.com","和歌山県和歌山市一番丁１"],
+["みほん電機","山本　結衣","09000000111","yui@example.com","和歌山県和歌山市一番丁1"],
+["テスト教室","松本　悠真","090-0000-0012","yuma@example.com","千葉県千葉市中央区中央１－１"],
+["テスト教室","松本 悠真","090-0000-0012","yuma@example.com","千葉県千葉市中央区中央1-1"],
+["(株)ミホン建設","井上　陽子","011-000-0013","yoko@example.com","北海道旭川市６条通７丁目"],
+["見本ベーカリー","木村　湊","090-0000-0014","minato@example.com","兵庫県神戸市中央区三宮町１－１"],
+["みほんカフェ","林　芽依","090-0000-0015","mei@example.com","広島県広島市中区紙屋町２－２"],
+["みほんカフェ","林　芽依","090-0000-0016","mei2@example.com","広島県広島市中区紙屋町2-2"],
+["株式会社サンプル薬局","清水　颯","03-0000-0017","hayate@example.com","東京都新宿区西新宿２－８－１"],
+["サンプル薬局","清水　颯","0300000017","hayate@example.com","東京都新宿区西新宿2-8-1"],
+["見本ネイル","山口　凛","090-0000-0018","rin@example.com","宮城県仙台市青葉区一番町３－３"]];
+
+$("btnSample").addEventListener("click", () => load(SAMPLE.map(r => r.map(csvCell).join(",")).join("\r\n"), { used: "見本", name: "見本の名簿" }));
+$("file").addEventListener("change", e => { const f = e.target.files[0]; if (f) readFile(f); e.target.value = ""; });
+$("btnPaste").addEventListener("click", () => load($("paste").value, { used: "貼り付け", name: "貼り付け" }));
+$("btnRun").addEventListener("click", run);
+$("btnSave").addEventListener("click", save);
+</script>
+</body>
+</html>
